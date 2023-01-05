@@ -1,5 +1,5 @@
-﻿/*************************************
-Fertigstellung: 09.12.2022
+/*************************************
+Fertigstellung: 05.01.2023
 Bearbeiter(in) 1: Maj, Aleksandr, 1360213
 Bearbeiter(in) 2: Plebukh, Wladislaw, 1360268
 ***************************************/
@@ -11,7 +11,6 @@ da oft gesagt wird, dass die Sprachen sehr ähnlich sind. Jetzt verstehen wir wa
 
 using System;
 using System.Globalization;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Net;
 using System.IO;
@@ -23,8 +22,8 @@ namespace bwi40322
         //Config
         public const string URL = "https://cbrell.de/bwi403/demo/ZaehlerstandExport.csv"; //Die URL, von der die CSV-Datei heruntergeladen werden soll
         public const string CSV_DATEI_NAME = "ein.csv"; //Unter welchem Namen soll die CSV-Datei abgespeichert werden?
-        public const string JSON_ZWISCHENSPEICHER_DATEI_NAME = "aus.json"; //Unter welchem Namen soll die Zwischenspeicherung im JSON-Format erfolgen?
-        public const string KENNZAHLEN_DATEI_NAME = "kennzahlen.json"; //Unter welchem Namen sollen die Kennzahlen im JSON-Format gespeichert werden?
+        public const string DATEN_ZWISCHENSPEICHER_DATEI_NAME = "aus.csv"; //Unter welchem Namen soll die Zwischenspeicherung im CSV-Format erfolgen?
+        public const string KENNZAHLEN_DATEI_NAME = "kennzahlen.txt"; //Unter welchem Namen sollen die Kennzahlen im TXT-Format gespeichert werden?
         public const string VISUALISIERUNG_DATEI_NAME = "index.html"; //Unter welchem Namen soll die Visualisierung als HTML-Datei gespeichert werden?
 
         //Regex (= Regulärer Ausdruck) zur Erkennung eines gültigen Datums & Uhrzeit
@@ -33,7 +32,7 @@ namespace bwi40322
         //Records
         //Wir speichern alle Werte der CSV, um die langfristige Erweiterung des Programms zu vereinfachen --> Erzeugung weiterer Kennzahlen einfach möglich
         public record Datensatz(double? gasCBM, double? stromKWH, double? gasKWH, double? temperatur); //Simuliert eine Zeile aus der CSV-Datei
-        public record Monatsverbrauch(double? gasCBM, double? stromgKWH); //Dient zur gleichzeitigen Speicherung & leichten Abfrage der Kennzahlen
+        public record Monatsverbrauch(double? gasCBM, double? stromKWH); //Dient zur gleichzeitigen Speicherung & leichten Abfrage der Kennzahlen
 
         static void Main(string[] args)
         {
@@ -121,11 +120,14 @@ namespace bwi40322
 
             Console.WriteLine($"[INFO] CSV-Datei erfolgreich eingelesen. Es wurden {anzahlDatensaetze} gültige Datensätze erkannt");
             Console.WriteLine("[INFO] Eingelesene Daten als JSON-Datei gespeichert");
-            JsonSerializerOptions jsonOptionen = new JsonSerializerOptions { WriteIndented = true }; //Einstellungen, um Datensätze & Kennzahlen als JSON zu speichern
 
-            //Dictionary als JSON serialisieren, um Daten einfach lesbar zu machen. Die JSON dient zur Veranschaulichung der Daten
-            string json = JsonSerializer.Serialize(datensaetze, jsonOptionen);
-            File.WriteAllText(JSON_ZWISCHENSPEICHER_DATEI_NAME, json); //Speichern der JSON
+            //Inhalt der in die Output-CSV geschrieben werden soll
+            string inhalt = "Zeitstempel;Gas cbm kumuliert;Strom kWh kumuliert\n";
+            foreach(KeyValuePair<string, Datensatz> datensatz in datensaetze)  {
+                inhalt += $"{datensatz.Key};{datensatz.Value.gasCBM};{datensatz.Value.stromKWH};\n"; //Datensatz der CSV erzeugen und mit den bisherigen aus dem String verketten
+            }
+            File.WriteAllText(DATEN_ZWISCHENSPEICHER_DATEI_NAME, inhalt); //Speichern der Output-CSV-Datei Datei
+            inhalt = ""; //Variable für späteren Gebrauch auf einen leeren Wert setzen --> Keine 2. Variable erzeugen --> Speicherplatz sparen
 
             Console.WriteLine("--- Stage 2 ---\r\n");
             /* --------------------------------------------------
@@ -188,7 +190,7 @@ namespace bwi40322
                     //Extra Fehlerbehandlung für den letzten Monat, da die Variable lastDate erst später aktualisiert wird und von der obigen Fehlerbehandlung nicht erkannt werden kann
                     if (datum == schluesselListe.Last() && !kennzahlen.ContainsKey(getMonatsName(datum)))
                     {
-                        Console.WriteLine($"[FEHLER] Nicht genug Daten, um Verbrauch für {getMonatsName(datum)} zu bestimmen");
+                        Console.WriteLine($"[ACHTUNG] Nicht genug Daten, um Verbrauch für {getMonatsName(datum)} zu bestimmen");
                         break;
                     }
                     startDatum = datum; //Derzeitiges Datum als Start-Datum festlegen, wenn Verbrauch für Monat berechnet wurde --> Indikator, dass neuer Monat begonnen hat
@@ -196,12 +198,18 @@ namespace bwi40322
                 endDatum = datum; //Derzeitiges Datum als mögliches End-Datum setzen
             }
 
-            //Monatsverbräuche als JSON speichern für eine übersichtliche Darstellung
-            json = JsonSerializer.Serialize(kennzahlen, jsonOptionen);
-            File.WriteAllText(KENNZAHLEN_DATEI_NAME, json);
+            inhalt = ""; //Dieser String wird später in die Kennzahlen-Datei geschrieben.
+            
+            //Durch alle Kennzahlen iterieren, die Nachricht für die Kennzahlen-TXT erzeugen und schließlich in die Datei schreiben
+            foreach (KeyValuePair<string, Monatsverbrauch> monatsVerbrauch in kennzahlen)
+            {
+                //Der obigen Variable mit einer neuen Zeile verketten, die Auskunft über Verbrauch gibt. Werte sind hierbei auf 2 Nachkommastellen gerundet
+                inhalt += $"Verbauch im {monatsVerbrauch.Key} lag bei {String.Format("{0:0.##}", monatsVerbrauch.Value.gasCBM)} m³ & {String.Format("{0:0.##}", monatsVerbrauch.Value.stromKWH)} kWh\n";
+            }
+            File.WriteAllText(KENNZAHLEN_DATEI_NAME, inhalt); //Verbrauch in txt-Datei schreiben
 
             Console.WriteLine("[INFO] Kennzahlen erfolgreich erzeugt");
-            Console.WriteLine("[INFO] Kennzahlen als kennzahlen.json gespeichert");
+            Console.WriteLine($"[INFO] Kennzahlen als {KENNZAHLEN_DATEI_NAME} gespeichert");
             Console.WriteLine("--- Stage 3 ---\r\n");
             /* --------------------------------------------------
              Stage 4: Ausgaben / Visualisierung erzeugen und speichern
@@ -234,8 +242,10 @@ namespace bwi40322
         //Diese Methode ermittelt aus einem Datum den Monatsnamen, indem sie auf die interne Monatsnamen-Liste von C# zugreift
         public static string getMonatsName(string date)
         {
-            date = date.Split(".")[1]; ;
-            return CultureInfo.CurrentCulture.DateTimeFormat.MonthNames[Int16.Parse(date) - 1];
+            //Datum aufspalten an . und Leerzeichen, um auf die einzelnen Teile des Datum zugreifen zu können
+            //Leerzeichen als zusätzliches Trennzeichen, da Uhrzeit von Datum mit Leerzeichen getrennt ist
+            string[] aufgeteiltesDatum = date.Split(new Char [] {'.', ' '});
+            return CultureInfo.CurrentCulture.DateTimeFormat.MonthNames[Int16.Parse(aufgeteiltesDatum[1]) - 1] + $" (20{aufgeteiltesDatum[2]})";
         }
 
         /*Diese Methode validiert ein Datum für die Berechnung des Gas-Verbrauchs, indem geschaut wird, ob der Wert am Stichtag ein null-Wert ist, 
@@ -281,8 +291,8 @@ namespace bwi40322
                                 <div class='einzelner-balken gas' style='height: {kennzahlen.gasCBM * pixelProEinheit}px'></div>
                             </div>
                             <div>
-                                <div class='balken-wert'>{String.Format("{0:0.##}", kennzahlen.stromgKWH)}</div>
-                                <div class='einzelner-balken strom' style='height: {kennzahlen.stromgKWH * pixelProEinheit}px'></div>
+                                <div class='balken-wert'>{String.Format("{0:0.##}", kennzahlen.stromKWH)}</div>
+                                <div class='einzelner-balken strom' style='height: {kennzahlen.stromKWH * pixelProEinheit}px'></div>
                             </div>
                             </div>
                             <div class='strich'></div>
@@ -357,6 +367,14 @@ namespace bwi40322
                         grid-template-columns: repeat(4, 1fr);
                         grid-gap: 65px;
                         width: fit-content;
+                    }
+
+                    @media screen and (max-width: 700px) {
+                        .grid-container {
+                        grid-template-columns: 1fr;
+                        margin-left: auto;
+                        margin-right: auto;
+                        }
                     }
 
                     .karte {
@@ -473,7 +491,7 @@ namespace bwi40322
                         <div class='legende-item'>
                             <div class='kreis' style='background-color: #3AB795'></div>Gas in CBM</div>
                         <div class='legende-item'>
-                            <div class='kreis' style='background-color: #FFCF56'></div>Strom in KwH</div>
+                            <div class='kreis' style='background-color: #FFCF56'></div>Strom in kWh</div>
                         </div>
                     </section>
                     </body>
