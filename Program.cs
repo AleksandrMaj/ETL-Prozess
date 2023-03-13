@@ -1,14 +1,3 @@
-/*************************************
-Fertigstellung: 05.01.2023
-Bearbeiter(in) 1: Maj, Aleksandr, 1360213
-Bearbeiter(in) 2: Plebukh, Wladislaw, 1360268
-***************************************/
-/*
-Grund, warum wir uns für C#/Python entschieden haben:
-Wir haben uns für C# entschieden, weil wir uns tiefergehend mit C# auseinandersetzen wollten, um herauszufinden, wie stark die Unterschiede zu Java sind,
-da oft gesagt wird, dass die Sprachen sehr ähnlich sind. Jetzt verstehen wir warum, sind aber von den neuen synaktischen Möglichkeiten von C# begeistert!
-*/
-
 using System;
 using System.Globalization;
 using System.Text.RegularExpressions;
